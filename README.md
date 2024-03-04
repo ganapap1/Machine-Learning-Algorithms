@@ -1,9 +1,6 @@
 # Machine-Learning-Algorithms
 Fourteen Machine learning Algorithms are in Quarto document.  I use Multiple Sclerosis dataset to build
-Descriptive Statistics
-Correlation plot
-Confusion Matrix for 14 algorithms
-Model Prediction using 14 algorithms
+Descriptive Statistics, Correlation plot, Confusion Matrix for 14 algorithms, fourfolded confusion matrix Model Prediction using 14 algorithms using KableExtra package and HTML tags
 
 1. Decision Tree C5.0,
 2. Decision Tree Tune C5.0,
