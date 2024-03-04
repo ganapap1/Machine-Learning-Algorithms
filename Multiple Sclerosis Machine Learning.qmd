@@ -1,0 +1,833 @@
+---
+title: "Multiple Sclerosis and Machine Learning"
+format:
+  html: 
+    toc: true
+    anchor-sections: false
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    number-sections: false
+    smooth-scroll: true
+    code-fold: false
+    code-overflow: scroll
+    self-contained: True
+    html-math-method: katex
+    linkcolor: "#007FFF"
+    link-external-newwindow: true
+    output-file: "MS_output.html"
+    css: C:/R_Projects/Data_Upload_Cleansing/style.css
+    page-layout: full
+    grid:
+      sidebar-width: 150px
+      body-width: 1100px
+      margin-width: 250px
+      gutter-width: 3.5rem
+editor: visual
+---
+
+## 1. Overview
+
+**What is multiple sclerosis?** Explanation and Image from MAYO CLINIC:\
+Ref: <https://www.mayoclinic.org/diseases-conditions/multiple-sclerosis/symptoms-causes/syc-20350269>
+
+::: row
+::: two-columns
+Multiple sclerosis (MS) is a potentially disabling disease of the brain and spinal cord (central nervous system).
+
+In MS, the immune system attacks the protective sheath (myelin) that covers nerve fibers and causes communication problems between your brain and the rest of your body. Eventually, the disease can cause permanent damage or deterioration of the nerve fibers.
+
+Signs and symptoms of MS vary widely between patients and depend on the location and severity of nerve fiber damage in the central nevous system. Some people with severe MS may lose the ability to walk independently or ambulate at all. Other individuals may experience long periods of remission without any new symptoms depending on the type of MS they have.
+
+There's no cure for multiple sclerosis. However, there are treatments to help speed the recovery from attacks, modify the course of the disease and manage symptoms
+
+![](https://www.mayoclinic.org/-/media/kcms/gbs/patient-consumer/images/2013/08/26/10/09/multiple-sclerosis-nerve-illustration-8-col-615430-001-2.jpg){fig-align="center" width="412" height="320"}
+:::
+:::
+
+## 2. About Dataset
+
+Prospective cohort study was conducted in Mexican mestizo patients newly diagnosed with CIS who presented at the National Institute of Neurology and Neurosurgery (NINN) in Mexico City, Mexico, between 2006 and 2010.\
+**Data source:** <https://www.kaggle.com/code/sanjaymandal/multiple-sclerosis/input>\
+**Dataset column descriptions:**
+
+::: row
+::: two-columns-with-points
+1.  ID: Patient identifier (int)
+2.  Age: Age of the patient (in years)
+3.  Schooling: time the patient spent in school (in years)
+4.  Gender: 1=male, 2=female
+5.  Breastfeeding: 1=yes, 2=no, 3=unknown
+6.  Varicella: 1=positive, 2=negative, 3=unknown
+7.  Initial_Symptoms: 1=visual, 2=sensory, 3=motor, 4=other, 5= visual and sensory, 6=visual and motor, 7=visual and others, 8=sensory and motor, 9=sensory and other, 10=motor and other, 11=Visual, sensory and motor, 12=visual, sensory and other, 13=Visual, motor and other, 14=Sensory, motor and other, 15=visual,sensory,motor and other
+8.  Mono \_or_Polysymptomatic: 1=monosymptomatic, 2=polysymptomatic, 3=unknown
+9.  Oligoclonal_Bands: 0=negative, 1=positive, 2=unknown
+10. LLSSEP: 0=negative, 1=positive
+11. ULSSEP:0=negative, 1=positive
+12. VEP:0=negative, 1=positive
+13. BAEP: 0=negative, 1=positive
+14. Periventricular_MRI:0=negative, 1=positive
+15. Cortical_MRI: 0=negative, 1=positive
+16. Infratentorial_MRI:0=negative, 1=positive
+17. Spinal_Cord_MRI: 0=negative, 1=positive
+18. initial_EDSS:? (Expanded Disability Status Scale)
+19. final_EDSS:?
+20. Group: 1=CDMS, 2=non-CDMS (Clinically Definite Multiple Sclerosis)
+:::
+:::
+
+## 3. Importing Dataset :: Fix Pameters :: Review Dataset :: Descriptive Stats
+
+### 3.1 Import and Fix Pameters
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+#| results: false
+
+library(tidyverse)
+library(kableExtra)
+library(dplyr)
+mcsvname <-"conversion_predictors_of_clinically_isolated_syndrome_to_multiple_sclerosis.csv"
+mydata <- read.csv(paste0("C:/R_Projects/Multiple_Sclerosis/Dataset/",mcsvname),header = TRUE)
+
+# Removing columns that are not required and omiting NAs
+mydata        <- subset(mydata, select = -c(1,Initial_EDSS,Final_EDSS))
+mydata        <- na.omit(mydata)
+
+# Declaring all variables and Parameters
+mdependvar    <- 'group'
+mbinaryOne    <- 1
+mbinaryTwo    <- 2
+mbinaryOneTxt <- 'CDMS'
+mbinaryTwoTxt <- 'NON-CDMS'
+n=which(colnames(mydata)== mdependvar)
+
+# Declaring formula for model building, you get output like this group~.
+f2 <- as.formula(paste(text=mdependvar,"~", "."))
+```
+
+### 3.2 Review Dataset
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+####Let us review  glimpse of the data
+tempdf <- head(mydata,10)
+colnames(tempdf) <- gsub("_", " ", colnames(tempdf))
+
+xx<- nrow(tempdf)
+tempdf %>%
+  kbl(caption ='Review your Data') %>%
+  row_spec(0:xx, angle = 360,bold=FALSE, color = "black",background = '#ffffff',font_size = 11)%>%
+  kable_classic_2(full_width = TRUE) %>% 
+  scroll_box(width = "95%",height = '400px')%>%
+  column_spec(c(1:ncol(tempdf)), width = "100px")  # Adjust the width as needed
+
+```
+
+### 3.3. Descriptive Statistics
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+dfonlynumeric <- mydata[sapply(mydata, is.numeric)]
+###  Calculated the average
+average1<- apply(dfonlynumeric,2,mean)
+
+#### calculate th median
+
+median1<- apply(dfonlynumeric,2,median)
+
+### sd
+library(Rmisc)
+SD1<- apply(dfonlynumeric,2,sd)
+variance1<-apply(dfonlynumeric,2,var)
+range1<- apply(dfonlynumeric,2,function(column){max(column)-min(column)})
+max1<-apply(dfonlynumeric,2,max)
+min1<-apply(dfonlynumeric,2,min)
+IQR<- apply(dfonlynumeric,2,IQR)
+uci1 <- round(apply(dfonlynumeric,2,Rmisc::CI)[1,],2)
+lci1 <- round(apply(dfonlynumeric,2,Rmisc::CI)[3,],2)
+
+###Putting it all together
+statistical_data<- data.frame(mean_sd= paste(sprintf('%.2f',average1),"\u00B1",sprintf('%.2f',SD1)),
+                              CI = paste0(lci1,"-",uci1),
+                              Variance=variance1,
+                              range=range1,
+                              min=min1,
+                              max=max1,
+                              IQR=IQR,
+                              median=median1)
+# coefficient of variation : interpretation: if the square of coefficient of variance is more than 0.5 means the data is highly spreaded
+statistical_data$coff_var<- SD1 / average1
+variables <- data.frame(variables=names(average1))
+statistical_data <- data.frame(variables,statistical_data)
+statistical_data <- data.frame(lapply(statistical_data, function(y) if(is.numeric(y)) round(y, 2) else y))
+
+ library(DT)
+  DT::datatable(statistical_data,
+                rownames = FALSE,
+                editable = FALSE,
+                selection = list(mode = "single", selected = c(1), target = 'row'),
+                #fillContainer = getOption("DT.fillContainer", TRUE),
+                options = list(
+                  # lengthMenu = list(c(25, 50,-1), c('25','50' ,'All')),
+                  columnDefs = list(list(className = 'dt-center', targets = c(1:6))),
+                  paging = FALSE,
+                  lenthChange=FALSE,
+                  searching = FALSE,
+                  fixedColumns = FALSE,
+                  autoWidth = FALSE,
+                  ordering = FALSE,
+                  initComplete = htmlwidgets::JS(
+                    "function(settings, json) {",
+                    paste0("$(this.api().table().container()).css({'font-size': '", "12px", "'});"),
+                    "}")
+                ),
+
+                class ='cell-border stripe compact white-space: nowrap', #where you got this multiple classes: https://rstudio.github.io/DT/
+  ) %>%
+    DT::formatStyle( 0, target= 'row',color = 'black', lineHeight='70%')%>%
+    DT::formatStyle(columns = c(1:ncol(statistical_data)), fontSize = '90%')
+```
+
+## 4. Analyze the Correlation between variables
+
+### 4.1. Correlation Plot
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| fig-align: center
+#| fig-format: png
+#| fig-width: 12
+#| fig-asp: .75
+
+library(GGally)
+temp <- dplyr::select_if(mydata,is.numeric)
+ggcorr(temp, 
+       name = "corr",
+       digits = 2,
+       geom = "tile",
+       label = TRUE,
+       label_color = "black",
+       label_round = 2,
+       label_size = 3.5,
+       size = 3,
+       hjust = 0.8)+
+  theme(legend.position="none")+
+labs(title="Correlation Plot - Multiple Sclerosis")+
+theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=15))
+
+```
+
+### 4.2. Correlation matrix
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+library(corrplot)
+tempdf <- mydata
+colnames(tempdf) <- gsub("_", " ", colnames(tempdf))
+msccormt <- round(cor(tempdf),2)
+Column_Name <- rownames(msccormt) 
+msccormt <- cbind(msccormt, Column_Name)
+####Let us review correlation as table
+
+xx<- nrow(msccormt)
+msccormt %>%
+  kbl(caption ='Review of Correlation') %>%
+  row_spec(0:xx, angle = 360,bold=FALSE, color = "black",background = '#ffffff',font_size = 11)%>%
+  kable_classic_2(full_width = TRUE) %>% 
+  # scroll_box(width = "95%",height = '400px') %>%
+  column_spec(1, width_min  = "150px")  %>%
+  column_spec(c(2:ncol(msccormt)), width = "100px") %>%  # Adjust the width as needed
+  column_spec(ncol(msccormt)+1, width_min  = "150px")
+```
+
+## 5. Split Dataset as Train and Test
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+# converting dependent variable as factor
+mydata[,n] <- as.factor(mydata[,n])
+
+# Split Dataset as Train and Test
+set.seed(123)
+indms <- sample(2, nrow(mydata), replace = TRUE, prob = c(0.7,0.3))
+trainData <- mydata[ indms == 1,]
+testData <- mydata [indms ==2,]
+
+```
+
+## 6. Developing 14 Classification Models
+
+### 6.1. Decision Tree C5.0
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(C50)
+library(caret)
+model_c50 <- C5.0(trainData[,-n],trainData[,n])
+pred_c50 <- predict(model_c50, testData[,-n])
+cmx_c50 <- confusionMatrix(pred_c50, testData[,n])
+```
+
+### 6.2. Decision Tree Tune C5.0
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(C50)
+library(caret)
+acc_test <- numeric()
+accuracy1 <- NULL; accuracy2 <- NULL
+    
+for(i in 1:50){
+  model_imp_c50 <- C5.0(trainData[,-n],trainData[,n],trials = i)      
+  p_c50 <- predict(model_imp_c50, testData[,-n]) 
+  accuracy1 <- confusionMatrix(p_c50, testData[,n])
+  accuracy2[i] <- accuracy1$overall[1]
+}
+acc <- data.frame(t= seq(1,50), cnt = accuracy2)
+opt_t <- subset(acc, cnt==max(cnt))[1,]
+    
+model_imp_c50 <- C5.0(trainData[,-n],trainData[,n],trials=opt_t$t)	
+pred_imp_c50 <- predict(model_imp_c50, testData[,-n])
+cmx_imp_c50 <- confusionMatrix(pred_imp_c50, testData[,n])
+```
+
+### 6.3. Recursive Partitioning (RPART)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(rpart)
+library(caret)
+model_rp <- rpart(f2,data=trainData,control=rpart.control(minsplit=2),method = 'class')
+pred_rp <- predict(model_rp, testData[,-n], type="class")
+cmx_rp  <- confusionMatrix(pred_rp, testData[,n])	
+
+```
+
+### 6.4. Prune Recursive Partitioning (PRUNE RPART)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(rpart)
+library(caret)
+model_pru <- prune(model_rp, cp=model_rp$cptable[which.min(model_rp$cptable[,"xerror"]),"CP"])
+pred_pru <- predict(model_pru, testData[,-n], type="class")
+cmx_pru <-confusionMatrix(pred_pru, testData[,n])		
+
+```
+
+### 6.5. Random Forest
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(randomForest)
+library(caret)
+model_rf <- randomForest(f2, data=trainData, ntree=300, proximity=T, importance=T,
+                             na.action = na.omit)
+pred_rf   <- predict(model_rf, testData[,-n])
+cmx_rf    <- confusionMatrix(pred_rf, testData[,n])	
+
+```
+
+### 6.6. Support Vector Machine (SVM)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(e1071)
+library(caret)
+model_svm <- svm(f2, data=trainData)
+pred_svm <- predict(model_svm, testData[,-n])
+cmx_svm <- confusionMatrix(pred_svm, testData[,n])
+
+```
+
+### 6.7. Tune Support Vector Machine (TUNE SVM)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(e1071)
+library(caret)
+gamma <- seq(0,0.1,0.005)
+cost <- 2^(0:5)
+parms <- expand.grid(cost=cost, gamma=gamma)    ## 231
+    
+acc_test <- numeric()
+accuracy1 <- NULL; accuracy2 <- NULL
+    
+for(i in 1:NROW(parms)){        
+  model_svm <- svm(f2, data=trainData, gamma=parms$gamma[i], cost=parms$cost[i])
+  pred_svm <- predict(model_svm, testData[,-n])
+  accuracy1 <- confusionMatrix(pred_svm, testData[,n])
+  accuracy2[i] <- accuracy1$overall[1]
+}
+acc <- data.frame(p= seq(1,NROW(parms)), cnt = accuracy2)
+opt_p <- subset(acc, cnt==max(cnt))[1,]
+    
+model_imp_svm <- svm(f2, data=trainData, cost=parms$cost[opt_p$p], gamma=parms$gamma[opt_p$p])
+pred_imp_svm <- predict(model_imp_svm, testData[,-n])
+cmx_imp_svm <- confusionMatrix(pred_imp_svm, testData[,n])	
+
+```
+
+### 6.8. Logistic Regression
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(caret)
+xxx <- paste0("trainData$",mdependvar)
+f2A <- as.formula(paste(text=xxx,"~", "."))
+model_lreg<-glm(f2A,family = binomial(link = 'logit'), data=trainData)
+
+pred1 <- predict(model_lreg, newdata = testData[,-n], type = "response")
+y_pred1 <- as.numeric(ifelse( pred1  >= 0.5, 2, 1))
+y_pred1  <- factor( y_pred1 , levels = c(1, 2))
+y_act1 <- testData[,n]
+y_act1  <- factor( y_act1 , levels = c(1, 2))
+cmx_lreg<- caret::confusionMatrix(y_pred1, y_act1)
+
+
+```
+
+### 6.9. Gradient Boosting Machine (GBM)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+#| results: false
+
+library(gbm)
+library(caret)
+test_gbm <- gbm(f2, data=trainData, distribution="gaussian",n.trees = 10000,
+                shrinkage = 0.01, interaction.depth = 4, bag.fraction=0.5,train.fraction=0.5,
+                n.minobsinnode=10,cv.folds=3,keep.data=TRUE,verbose=FALSE,n.cores=1)
+best.iter <- gbm.perf(test_gbm, method="cv",plot.it=FALSE)
+fitControl = trainControl(method="cv", number=5, returnResamp="all")
+
+model_gbm = train(f2, data=trainData, method="gbm", distribution="bernoulli", trControl=fitControl, 
+                  verbose=F, tuneGrid=data.frame(.n.trees=best.iter, .shrinkage=0.01, 
+                                                 .interaction.depth=1, .n.minobsinnode=1))
+pred_gbm <- predict(model_gbm, testData[,-n])
+cmx_gbm <- confusionMatrix(pred_gbm, testData[,n])
+
+
+```
+
+### 6.10. Adaptive Boost (ADABOOST)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(ada)
+library(rpart)
+library(caret)
+control <- rpart.control(cp = -1, maxdepth = 14,maxcompete = 1,xval = 0)
+model_ada <- ada(f2, data = trainData, test.x = trainData[,-n], test.y = trainData[,n], 
+                 type = "gentle", control = control, iter = 70)
+pred_ada <- predict(model_ada, testData[,-n])
+cmx_ada <- confusionMatrix(pred_ada, testData[,n])
+
+```
+
+### 6.11. Naive Bayes Classifier
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(e1071)
+library(caret)
+   
+acc_test <- numeric()
+accuracy1 <- NULL; accuracy2 <- NULL
+    
+for(i in 1:30){
+  model_imp_nb <- naiveBayes(trainData[,-n], trainData[,n], laplace=i)    
+  p_nb <- predict(model_imp_nb, testData[,-n]) 
+  accuracy1 <- confusionMatrix(p_nb, testData[,n])
+  accuracy2[i] <- accuracy1$overall[1]
+}
+    
+acc <- data.frame(l= seq(1,30), cnt = accuracy2)
+    
+opt_l <- subset(acc, cnt==max(cnt))[1,]
+model_nb <- naiveBayes(trainData[,-n], trainData[,n])
+pred_nb <- predict(model_nb, testData[,-n])
+cmx_nb <- confusionMatrix(pred_nb, testData[,n])
+
+```
+
+### 6.12. K-Nearest Neighbors (KNN)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(caret)
+
+ctrl <- trainControl(method = "cv", verboseIter = FALSE, number = 5)
+model_knn <- train(f2,data = trainData, method = "knn", preProcess = c("center","scale"),
+                    trControl = ctrl , tuneGrid = expand.grid(k = seq(1, 20, 2)))
+predictions <- predict(model_knn,newdata = testData[,-n] )
+cmx_knn <- confusionMatrix(predictions, testData[,n] )
+
+```
+
+### 6.13. Linear Discriminant Analysis (LDA)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(caret)
+model_lda <- train(f2, method = "lda", data = trainData)
+pred_lda <- predict(model_lda, testData[,-n])
+cmx_lda <- confusionMatrix(pred_lda, testData[,n])
+    
+```
+
+### 6.14. Quadrant Discriminant Analysis (QDA)
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: true
+
+library(caret)	
+model_qda <- train(f2, method = "qda", data = trainData)
+pred_qda <- predict(model_qda , testData[,-n])
+cmx_qda <- confusionMatrix(pred_qda, testData[,n])
+    
+```
+
+## 7. Confusion Matrix Custom Function
+
+Thanks to Cybernetic and Breck, Data Scientist at UH Cancer Center for the valuable contribution at stackoverflow.com on R how to visualize confusion matrix using the caret package. I made marginal improvement by adding totals all round matrix and column names and modified reported statistics. Link to stackoverflow.com: <https://stackoverflow.com/questions/23891140/r-how-to-visualize-confusion-matrix-using-the-caret-package/42940553#42940553>
+
+```{r}
+#| message: false
+#| warning: false
+
+fnpercent <- function(x, digits = 2, format = "f", ...) {      # Create user-defined function
+  paste0(formatC(x * 100, format = format, digits = digits, ...), "%")
+}
+
+fnConfusionMatrix <- function(xresults1,xmbinaryOneTxt=mbinaryOneTxt,xmbinaryTwoTxt=mbinaryTwoTxt,xtitle='Confusion Matrix'){
+    rownames(xresults1$table)<-ifelse(rownames(xresults1$table)=="1",xmbinaryOneTxt,xmbinaryTwoTxt)
+    colnames(xresults1$table)<-ifelse(colnames(xresults1$table)=="1",xmbinaryOneTxt,xmbinaryTwoTxt)
+    
+    total <- sum(xresults1$table)
+    res <- as.numeric(xresults1$table)
+    
+    # Generate color gradients. Palettes come from RColorBrewer.
+    greenPalette <- c("#F7FCF5","#E5F5E0","#C7E9C0","#A1D99B","#74C476","#41AB5D","#238B45","#006D2C","#00441B")
+    redPalette <- c("#FFF5F0","#FEE0D2","#FCBBA1","#FC9272","#FB6A4A","#EF3B2C","#CB181D","#A50F15","#67000D")
+    getColor <- function (greenOrRed = "green", amount = 0) {
+      if (amount == 0)
+        return("#FFFFFF")
+      palette <- greenPalette
+      if (greenOrRed == "red")
+        palette <- redPalette
+      colorRampPalette(palette)(100)[10 + ceiling(90 * amount / total)]
+    }
+    
+    # set the basic layout
+    layout(matrix(c(1,1,2)))
+    par(mar=c(2,2,2,2))
+    plot(c(125, 355), c(270, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+    title(xtitle, cex.main=2.5,col.main='red')
+    # create the matrix
+    classes = colnames(xresults1$table)
+    rect(150, 430, 240, 370, col=getColor("green", res[1]))
+    text(195, 445, classes[1], cex=1.5)
+    rect(250, 430, 340, 370, col=getColor("red", res[3]))
+    text(295, 445, classes[2], cex=1.5)
+    text(130, 370, 'Predicted', cex=1.7, srt=90, font=2)
+    text(245, 445, 'Actual', cex=1.7, font=2)
+    rect(150, 305, 240, 365, col=getColor("red", res[2]))
+    rect(250, 305, 340, 365, col=getColor("green", res[4]))
+    text(140, 400, classes[1], cex=1.5, srt=90)
+    text(140, 335, classes[2], cex=1.5, srt=90)
+    
+    # add in the xresults1 results
+    text(195, 400, res[1], cex=2.0, font=2.3, col='black')
+    text(195, 335, res[2], cex=2.0, font=2.3, col='black')
+    text(295, 400, res[3], cex=2.0, font=2.3, col='black')
+    text(295, 335, res[4], cex=2.0, font=2.3, col='black')
+    
+    text(195, 285, (res[1]+res[2]), cex=2.0, font=2.3, col='black')
+    text(295, 285, (res[3]+res[4]), cex=2.0, font=2.3, col='black')
+    text(350, 400, (res[1]+res[3]), cex=2.0, font=2.3, col='black', srt = 90)
+    text(350, 335, (res[2]+res[4]), cex=2.0, font=2.3, col='black', srt = 90)
+    text(350, 285, (res[1]+res[2]+res[3]+res[4]), cex=2.0, font=2.3, col='black', srt = 90)
+
+    # add in the specifics
+    plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "Stats", xaxt='n', yaxt='n',cex.main=2.0)
+    text(10, 85, names(xresults1$byClass[1]), cex=1.4, font=2)
+    text(10, 67, fnpercent(as.numeric(xresults1$byClass[1]), 1), cex=1.6)
+    text(32, 85, names(xresults1$byClass[2]), cex=1.4, font=2)
+    text(32, 67, fnpercent(as.numeric(xresults1$byClass[2]), 1), cex=1.6)
+    text(52, 85, names(xresults1$byClass[5]), cex=1.4, font=2)
+    text(52, 67, fnpercent(as.numeric(xresults1$byClass[5]), 1), cex=1.6)
+    text(72, 85, "NPV",cex=1.4, font=2)
+    text(72, 67, fnpercent(as.numeric(xresults1$byClass[4]), 1), cex=1.6)
+    text(92, 85, names(xresults1$byClass[7]), cex=1.4, font=2)
+    text(92, 67, fnpercent(as.numeric(xresults1$byClass[7]), 1), cex=1.6)
+    # add in the accuracy information
+    text(15, 35, names(xresults1$overall[1]),cex=1.4, font=2)
+    text(15, 17, fnpercent(as.numeric(xresults1$overall[1]), 1), cex=1.6)
+    text(85, 35, names(xresults1$overall[2]), cex=1.4, font=2)
+    text(50, 35, "Miss-Classification",cex=1.4, font=2)
+    text(50, 17, fnpercent(1-as.numeric(xresults1$overall[1]), 1), cex=1.6)
+    text(85, 17, fnpercent(as.numeric(xresults1$overall[2]), 1), cex=1.6)
+    
+  }
+
+```
+
+### 7.1. Confusion Matrix - with Statistics
+
+::: row
+```{r}
+#| message: false
+#| warning: false
+
+# Let's build a dataframe called objectdf with all required information for confusion matrix
+myobject<- c("cmx_c50", "cmx_imp_c50", "cmx_rp", "cmx_pru", "cmx_rf", "cmx_svm", 
+             "cmx_imp_svm", "cmx_lreg", "cmx_gbm", "cmx_ada", "cmx_nb", 
+             "cmx_knn", "cmx_lda", "cmx_qda")
+
+mytitle <- c("Decision Tree C5.0", "Decision Tree Tune C5.0", "Recursive Partitioning", 
+             "Prune Recursive Partitioning", "Random Forest", "SVM", "Tune SVM", 
+             "Logistic Regression", "GBM", "AdaBoost", "NaiveBayes", 
+             "K-Nearest Neighbors (KNN)", "Linear Discriminant Analysis", 
+             "Quadrant Discriminant Analysis"
+)
+myshorttitle <- c("C5.0", "Tune C5.0", "RPart", "Prune RPart", "Random Forest", 
+                  "SVM", "Tune SVM", "Logistic Regression", "GBM", "AdaBoost", 
+                  "NaiveBayes", "KNN", "LDA", "QDA"
+)
+
+objectdf <- data.frame(myobject,mytitle,myshorttitle)
+
+
+
+```
+:::
+
+::: two-columns
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+for (i in (1:length(myobject))){
+  fnConfusionMatrix(xresults1= get(objectdf$myobject[i]),xtitle=objectdf$mytitle[i])
+}
+
+```
+
+:::
+### 7.2. Confusion Matrix - Fourfold Plot
+
+```{r}
+#| message: false
+#| warning: false
+#| fig-align: center
+#| fig-format: png
+#| fig-width: 15
+#| fig-asp: 0.95
+#| out-width: 100%
+
+fnfourfoldplot <-function(xresults1,xmbinaryOneTxt=mbinaryOneTxt,xmbinaryTwoTxt=mbinaryTwoTxt,xtitle='Confusion Matrix'){
+    rownames(xresults1$table)<-ifelse(rownames(xresults1$table)=="1",xmbinaryOneTxt,xmbinaryTwoTxt)
+    colnames(xresults1$table)<-ifelse(colnames(xresults1$table)=="1",xmbinaryOneTxt,xmbinaryTwoTxt)
+  fourfoldplot(xresults1$table, color = col, conf.level = 0, margin = 1, main = paste(xtitle,"(",round(xresults1$overall[1]*100),"%)",sep=""))
+} 
+
+ par(mfrow=c(4,4))
+col <- c("#ff9594", "#c1f0c1")
+
+for (i in (1:length(myobject))){
+  fnfourfoldplot(xresults1 = get(objectdf$myobject[i]),xtitle=objectdf$myshorttitle[i])
+}
+
+
+```
+
+## 8. Model Prediction
+
+Now let's take one row from test dataset as new data and try to predict target variable using all 14 algorithms and place it in a dataframe.
+
+### 8.1. New Data Declaration and Predictive Analysis
+
+```{r}
+#| message: false
+#| warning: false
+
+#New Data Declaration
+mrownumber <- 42
+mnewdata <- testData[mrownumber,-n]
+mtargetvaluenewdata <- ifelse(as.numeric(testData[mrownumber,n]) ==1,mbinaryOneTxt,mbinaryTwoTxt)
+
+model_name <- c("Decision Tree C5.0", "Decision Tree Tune C5.0", "Recursive Partitioning", "Prune Recv. Partitioning", "Random Forest", "SVM", "Tune SVM", "Logistic Regression", "GBM", "AdaBoost", "NaiveBayes", "K-Nearest Neighbors","LDA","QDA")
+
+model_object<- c("model_c50", "model_imp_c50", "model_rp", "model_pru", "model_rf", "model_svm", "model_imp_svm", "model_lreg", "model_gbm", "model_ada", "model_nb", "model_knn", "model_lda", "model_qda")
+
+prediction_type <- c( "class",  "class",  "class",  "class",  "class",  "class",  "class",  "response",  "raw",  "vector",  "class",  "raw",  "raw",  "raw")
+    
+df5 <- data.frame(model_name,model_object,prediction_type)
+df5['model_result']<- NA
+df5['model_value']<- NA
+df5['model_color']<- NA
+df5['model_accuracy']<- NA
+
+    
+# Function to carry out prediction  
+    fndynamicboxprediction <- function(xmmodel,mnewdata,mtype){
+     mmodel<- get(xmmodel)
+    aaa <-predict(mmodel, newdata = mnewdata,type=mtype)
+    if(mtype=='response'){
+      aaa[[1]] <- ifelse(aaa[[1]] <= 0.5,1,2)
+    }
+    if(mtype=='prob'){
+      aaa[[1]] <- ifelse(aaa[[1]] > 0.5,1,2)
+    }
+    bbb <-ifelse(ifelse(as.numeric(aaa[[1]]) <= 1, 1, 2)== 1,mbinaryOneTxt, mbinaryTwoTxt)
+    if(as.numeric(aaa[[1]]) <= 1){
+      mboxcolor = '#b48600'
+    }else(
+      mboxcolor = 'green'
+    )
+    return(list('aaa'=aaa,
+                'bbb'=bbb,
+                'mboxcolor'=mboxcolor))
+    }
+    
+    
+## function to update data frame
+    fnupdatedf <- function(results,maccuracy,i){
+      df5$model_result[i]   <<- results$bbb
+      df5$model_value[i]    <<- results$aaa[1]
+      df5$model_color[i]    <<- results$mboxcolor
+      df5$model_accuracy[i] <<- maccuracy
+    }
+    
+for (i in 1:nrow(df5)) {   
+results <- fndynamicboxprediction(xmmodel=df5$model_object[i], mnewdata, mtype = df5$prediction_type[i])
+
+xxx <- sub(".*model_", "", df5$model_object[i])
+yyy <- paste0('cmx_',xxx)
+zzz <- get(yyy)
+maccuracy <- fnpercent(as.numeric(zzz$overall[1]), 1)
+fnupdatedf(results,maccuracy,i)
+}
+
+```
+
+### 8.2. Predictive Matrix
+
+```{r}
+#| message: false
+#| warning: false
+
+
+library(kableExtra)
+library(dplyr)
+
+# Initialize newdf5
+newdf5 <- data.frame(
+  AlgorithmSet1 = character(),
+  AlgorithmSet2 = character(),
+  AlgorithmSet3 = character(),
+  AlgorithmSet4 = character()
+)
+
+# Loop through df5 and populate newdf5 with colors
+for (i in seq(1, nrow(df5), by = 4)) {
+  # Create a new row in newdf5
+  new_row <- rep(NA, 4)
+  for (j in 0:3) {
+    col_index <- i + j
+    if (col_index > nrow(df5)) break
+    
+    new_row[j + 1] <- paste(
+      '<div style="background-color:', df5$model_color[col_index], '; padding: 0.5px; color: white; font-family: Cambria; text-align: center;">',
+      '<div style = "margin-top:7px; font-size: 18px; font-weight: bold;">',
+       df5$model_name[col_index], '</b>',
+      '<div style = "margin-top:10px; font-size: 12px; font-weight: normal;">',
+      'Training Data Accuracy: ', df5$model_accuracy[col_index],
+      '<div style = "margin-top:10px; font-size: 14px; font-weight: bold;">',
+       df5$model_result[col_index], '</b>',
+      '<div style = "margin-top:7px">',
+      '</div>'
+    )
+  }
+  # Add the new row to newdf5
+  newdf5 <- bind_rows(newdf5, setNames(as.list(new_row), names(newdf5)))
+}
+
+# Change font color of the last cell to black
+newdf5[nrow(newdf5), ncol(newdf5)] <- paste('<div style="color:white;">', newdf5[nrow(newdf5), ncol(newdf5)], '</div>')
+# Change font color of the last cell to black
+newdf5[nrow(newdf5), ncol(newdf5)-1] <- paste('<div style="color:white;">', newdf5[nrow(newdf5), ncol(newdf5)-1], '</div>')
+
+
+mcaption = paste(
+  '<div style="text-align: center; font-size: 24px; font-weight: bold;">',
+  'Prediction Matrix :: 14 Algorithms', '<br>', 
+  'Target value from Test Data: ', mtargetvaluenewdata, '</div><br>')
+
+# Output newdf5 as a styled HTML table
+kable(newdf5, "html", escape = FALSE,
+      caption = mcaption,col.names = NULL) %>%
+  kable_styling(full_width = FALSE) 
+
+```
+
+
+
